@@ -1,6 +1,6 @@
-## Cale 7 color WiFi download BMP example
+## Cale monochrome or 3 color WiFi download BMP example
 
-This will download a WiFi URL that should deliver a BMP image (Either 4 bit or 24 bit-depth)
+This will download a WiFi URL that should deliver a BMP image (Either 1 bit or 4 bit-depth for 3 colors)
 
 For that we recomment using [CALE image service at cale.es](https://cale.es) where you can add an Image gallery to your desired screen and will create an URL for you. 
 

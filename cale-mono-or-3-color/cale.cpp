@@ -1,7 +1,4 @@
 #include "string.h"
-#include <stdint.h>
-#include <stdbool.h>
-#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -31,18 +28,11 @@
 //#include <gdew027w3.h>
 //#include <gdeh0213b73.h>
 //#include <gdew0583z21.h>
-// EPD class: Select yours
-#include "color/gdey073d46.h"
-//#include "color/wave4i7Color.h"
-//#include "color/wave5i7Color.h"
+#include <color/gdeq042Z21.h>
 EpdSpi io;
-// Choose the right class for your display:
-gdey073d46 display(io);
-
-//Wave4i7Color display(io);
-//Wave5i7Color display(io);
-
-
+//Gdeh0213b73 display(io);
+//Gdew0583z21 display(io);
+Gdeq042Z21 display(io);
 // Plastic Logic test: Check cale-grayscale.cpp
 
 // Multi-SPI 4 channels EPD only
@@ -119,13 +109,7 @@ uint16_t bPointer = 34; // Byte pointer - Attention drawPixel has uint16_t
 uint16_t imageBytesRead = 0;
 uint32_t dataLenTotal = 0;
 uint32_t in_bytes = 0;
-uint8_t index24 = 0; // Index for 24 bit
-uint8_t in_byte = 0;  // for depth <= 8
-
-uint16_t in_red = 0;   // for depth 24
-uint16_t in_green = 0; // for depth 24
-uint16_t in_blue = 0;  // for depth 24
-
+uint8_t in_byte = 0; // for depth <= 8
 uint8_t in_bits = 0; // for depth <= 8
 bool isReadingImage = false;
 bool isSupportedBitmap = true;
@@ -134,8 +118,8 @@ uint16_t forCount = 0;
 
 static const uint16_t input_buffer_pixels = 640;      // may affect performance
 static const uint16_t max_palette_pixels = 256;       // for depth <= 8
-uint16_t rgb_palette_buffer[max_palette_pixels]; // palette buffer for depth <= 8 for buffered graphics, needed for 7-color display
-
+uint8_t mono_palette_buffer[max_palette_pixels / 8];  // palette buffer for depth <= 8 b/w
+uint8_t color_palette_buffer[max_palette_pixels / 8]; // palette buffer for depth <= 8 c/w
 uint16_t totalDrawPixels = 0;
 int color = EPD_WHITE;
 uint64_t startTime = 0;
@@ -167,7 +151,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     case HTTP_EVENT_ON_DATA:
         ++countDataEventCalls;
         if (countDataEventCalls%10==0) {
-        ESP_LOGI(TAG, "%d len:%d\n", (int) countDataEventCalls, (int) evt->data_len); }
+        ESP_LOGI(TAG, "%d len:%d\n", (int)countDataEventCalls, (int)evt->data_len); }
         dataLenTotal += evt->data_len;
         // Unless bmp.imageOffset initial skip we start reading stream always on byte pointer 0:
         bPointer = 0;
@@ -201,18 +185,13 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 isSupportedBitmap = false;
                 ESP_LOGE(TAG, "BMP NOT SUPPORTED: Compressed formats not handled.\nBMP NOT SUPPORTED: Only planes==1, format 0 or 3\n");
             }
-            if (bmp.depth > 24 || bmp.depth == 16)
+            if (bmp.depth > 8)
             {
                 isSupportedBitmap = false;
-                ESP_LOGE(TAG, "BMP DEPTH %d: Only 1, 4, 8 and 24 bits depth are supported.\n", (int)bmp.depth);
+                ESP_LOGE(TAG, "BMP DEPTH %d: Only 1, 4, and 8 bits depth are supported.\n", (int)bmp.depth);
             }
 
-            rowSize = (bmp.width * bmp.depth / 8 + 3) & ~3;
-            if (bmp.depth < 8)
-                rowSize = ((bmp.width * bmp.depth + 8 - bmp.depth) / 8 + 3) & ~3;
-
-            if (bmpDebug)
-                printf("ROW Size %d\n", (int)rowSize);
+            rowSize = ((bmp.width * bmp.depth + 8 - bmp.depth) / 8 + 3) & ~3;
 
             w = bmp.width;
             h = bmp.height;
@@ -241,7 +220,16 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     green = output_buffer[bPointer++];
                     red = output_buffer[bPointer++];
                     bPointer++;
-                    rgb_palette_buffer[pn] = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
+
+                    whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
+                    colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0));                                                  // reddish or yellowish?
+                    if (0 == pn % 8) {
+                        mono_palette_buffer[pn / 8] = 0;
+                        color_palette_buffer[pn / 8] = 0;
+                    }
+                        
+                    mono_palette_buffer[pn / 8]  |= whitish << pn % 8;                       
+                    color_palette_buffer[pn / 8] |= colored << pn % 8;
 
                     // DEBUG Colors - TODO: Double check Palette!!
                     if (bmpDebug)
@@ -289,12 +277,11 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         for (uint32_t byteIndex = bPointer; byteIndex < evt->data_len; ++byteIndex)
         {
             in_byte = output_buffer[byteIndex];
-            // Dump only the first calls: Debug only
-            /* if (countDataEventCalls < 2 && bmpDebug)
+            // Dump only the first calls
+            if (countDataEventCalls < 2 && bmpDebug)
             {
-                printf("L%d: BrsF:%d %x\n", byteIndex, imageBytesRead, in_byte);
-            } 
-            */
+                printf("L%d: BrsF:%d %x\n", (int)byteIndex, (int)imageBytesRead, (int)in_byte);
+            }
             in_bits = 8;
 
             switch (bmp.depth)
@@ -307,9 +294,23 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 {
 
                     uint16_t pn = (in_byte >> bitshift) & bitmask;
+                    whitish = mono_palette_buffer[pn / 8] & (0x1 << pn % 8);
+                    colored = color_palette_buffer[pn / 8] & (0x1 << pn % 8);
                     in_byte <<= bmp.depth;
                     in_bits -= bmp.depth;
-                    color = rgb_palette_buffer[pn];
+
+                    if (whitish)
+                    {
+                        color = EPD_WHITE;
+                    }
+                    else if (colored && with_color)
+                    {
+                        color = EPD_RED;
+                    }
+                    else
+                    {
+                        color = EPD_BLACK;
+                    }
 
                     // bmp.width reached? Then go one line up (Is readed from bottom to top)
                     if (isPaddingAware)
@@ -323,7 +324,8 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     }
                     else
                     {
-                        if (drawX + 1 > bmp.width)
+                        // if (drawX + 1 > bmp.width) -> Updated but not tested with 12.48 inch epaper
+                        if (drawX + 1 > rowSize *2)
                         {
                             drawX = 0;
                             rowByteCounter = 0;
@@ -332,54 +334,22 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     }
                     // The ultimate mission: Send the X / Y pixel to the GFX Buffer
                     display.drawPixel(drawX, drawY, color);
+                    if (drawY == 0) break;
 
                     totalDrawPixels++;
                     ++drawX;
                 }
             }
             break;
-
-            case 24:
-                // index24  3 byte B,G,R counter starts on 1
-                ++index24;
-                // Convert the 24 bits into 16 bit 565 (Adafruit GFX format)
-                switch (index24)
-                {
-                case 1:
-                    in_blue  = (in_byte>> 3) & 0x1f;
-                    break;
-                case 2:
-                    in_green = ((in_byte >> 2) & 0x3f) << 5;
-                    break;
-                case 3:
-                    in_red   = ((in_byte >> 3) & 0x1f) << 11;
-                    break;
-                }
-                
-                // Every 3rd byte we advance one X
-                if (index24 == 3) {
-                    if (drawX+1 > bmp.width)
-                    {
-                        drawX = 0;
-                        --drawY;
-                    }
-                
-                   totalDrawPixels++;
-                   color = (in_red | in_green | in_blue);
-                   display.drawPixel(drawX, drawY, color);
-                   ++drawX;
-                   index24 = 0;
-                }
-                
-            break;
             }
+
             rowByteCounter++;
             imageBytesRead++;
             forCount++;
         }
 
-        
-        if (bmpDebug) printf("Total drawPixel calls: %d\noutX: %d outY: %d\n", totalDrawPixels, drawX, drawY);
+        if (bmpDebug)
+            printf("Total drawPixel calls: %d\noutX: %d outY: %d\n", totalDrawPixels, drawX, drawY);
 
         // Hexa dump:
         //ESP_LOG_BUFFER_HEX(TAG, output_buffer, evt->data_len);
@@ -387,10 +357,10 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 
     case HTTP_EVENT_ON_FINISH:
         countDataEventCalls=0;
-        ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH\nDownload took: %llu ms\nRefresh and go to sleep %d minutes\n", (esp_timer_get_time()-startTime)/1000, (int) CONFIG_DEEPSLEEP_MINUTES_AFTER_RENDER);
+        ESP_LOGI(TAG, "HTTP_EVENT_ON_FINISH\nDownload took: %llu ms\nRefresh and go to sleep %d minutes\n", (esp_timer_get_time()-startTime)/1000, CONFIG_DEEPSLEEP_MINUTES_AFTER_RENDER);
         display.update();
         if (bmpDebug) 
-            printf("Free heap after display render: %d\n", (int) xPortGetFreeHeapSize());
+            printf("Free heap after display render: %d\n", (int)xPortGetFreeHeapSize());
         // Go to deepsleep after rendering
         vTaskDelay(14000 / portTICK_PERIOD_MS);
         deepsleep();
@@ -484,7 +454,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
         else
         {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-            ESP_LOGI(TAG, "Connect to the AP failed %d times. Going to deepsleep %d minutes", (int) CONFIG_ESP_MAXIMUM_RETRY, (int) CONFIG_DEEPSLEEP_MINUTES_AFTER_RENDER);
+            ESP_LOGI(TAG, "Connect to the AP failed %d times. Going to deepsleep %d minutes", (int)CONFIG_ESP_MAXIMUM_RETRY, (int)CONFIG_DEEPSLEEP_MINUTES_AFTER_RENDER);
             deepsleep();
         }
     }
@@ -566,7 +536,7 @@ void wifi_init_sta(void)
 
 void app_main(void)
 {
-    printf("CalEPD version: %s  7 Color demo\n", CALEPD_VERSION);
+    printf("CalEPD version: %s\n", CALEPD_VERSION);
     
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -576,17 +546,17 @@ void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // On init(true) activates debug (And makes SPI communication slower too)
-    display.init();
-    display.setRotation(CONFIG_DISPLAY_ROTATION);
-    // This 7 color Acep epapers leave a ghost from last refresh if stays for some minutes
-    // Let's clean the epaper to prepare it for a new image:
-    //display.update();
-    //vTaskDelay(2500 / portTICK_PERIOD_MS);
+    // WiFi log level
+    esp_log_level_set("wifi", ESP_LOG_ERROR);
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
+    
+    //  On  init(true) activates debug (And makes SPI communication slower too)
+    display.init();
+    display.setRotation(CONFIG_DISPLAY_ROTATION);
+    // Show available Dynamic Random Access Memory available after display.init() - Both report same number
+    printf("Free heap: %d (After epaper instantiation)\n", (int) xPortGetFreeHeapSize());
 
     http_post();
 
