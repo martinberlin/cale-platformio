@@ -16,7 +16,7 @@ We will add different demos that can be easily selected changing one line in pla
 src_dir = cale-7-color
 ```
 
-Just change src_dir that is what indicates the source directory that is built and point it to one of the available examples.
+Just change *src_dir* and point it to one of the available examples.
 
 - **7-color** a very simple demo to show how to draw things using GFX in any of the supported 7 color epapers
 - **cale-7-color** WiFi download of a bitmap file (4 or 24 bit-depth) that you can generate in [CALE.es](https://cale.es) or in any URL of your choice
