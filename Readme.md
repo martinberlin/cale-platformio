@@ -24,7 +24,7 @@ Just change *src_dir* and point it to one of the available examples.
 
 This examples are not meant to be a ready Firmware by itself but rather to point you in the right direction to be a base Firmware where you can build something on top.
 
-If you like our effort we would like that you ★ this repository and help us testing it, if you want to add a new epaper model that does not exist, please make a PR to our [cale-idf repository](https://github.com/martinberlin/cale-idf) that is where we do the development part. Also if you want to support our our becoming an sponsor there you have the option and also links to [PCB's that we designed](https://www.tindie.com/stores/fasani/) to drive this displays and read sensors in order to make [epaper-weather-stations](https://github.com/martinberlin/epaper-weather-station).
+If you like our effort we would like that you ★ this repository and help us testing it, if you want to add a new epaper model that does not exist, please make a PR to our [cale-idf repository](https://github.com/martinberlin/cale-idf) that is where we do the development part. Also if you want to support our work becoming an sponsor there you have the option and also links to [PCB's that we designed](https://www.tindie.com/stores/fasani/) to drive this displays and read sensors in order to make [epaper-weather-stations](https://github.com/martinberlin/epaper-weather-station).
 
 Thanks a lot for your attention and have a good experience using our base code!
 
