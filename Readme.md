@@ -12,8 +12,8 @@ We will add different demos that can be easily selected changing one line in pla
 
 ```
 [platformio]
-; Examples avail: 7-color | cale-7-color (wifi)
-src_dir = cale-7-color
+; Examples avail: 7-color | wifi required-> cale-7-color | cale-grayscale
+src_dir = cale-grayscale
 ```
 
 Just change *src_dir* and point it to one of the available examples.

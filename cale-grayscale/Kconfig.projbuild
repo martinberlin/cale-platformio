@@ -1,0 +1,48 @@
+menu "CALE Configuration"
+
+    config ESP_WIFI_SSID
+        string "WiFi SSID"
+        default "KabelBox-A210"
+        help
+            SSID (network name) for the Firmware.
+
+    config ESP_WIFI_PASSWORD
+        string "WiFi Password"
+        default ""
+        help
+            WiFi password (WPA or WPA2)
+
+    config CALE_SCREEN_URL
+        string "Screen URL to the Bitmap (1, 4, 8 or 24 bits per pixel)"
+        default "http://cale.es"
+        help
+            This can be an URL to the image web-service CALE.es
+
+    config CALE_BEARER_TOKEN
+        string "Security token only for private Screens protected with Authentication: Bearer (Max. 65 chars)"
+        default ""
+        help
+            Leave empty if your Screen is public in CALE.es
+
+    config DEEPSLEEP_MINUTES_AFTER_RENDER
+        int "Minutes that the ESP32 goes to deepsleep after display rendering."
+        range 5 1440
+        default 60
+    
+    config ESP_TRIGGER_SENSOR1
+        int "RISING: Trigger a new image request when the pin goes from LOW to HIGH cale-sensor example (0 to disable)"
+        range 0 33
+        default 27
+
+    config DISPLAY_ROTATION
+        int "Display rotation: 0 = default 1 = 90° clockwise 2 = 180° 3 = 270°"
+        range 0 3
+        default 0
+
+    config ESP_MAXIMUM_RETRY
+        int "Maximum retry for trying to reconnect to WiFi"
+        default 5
+        help
+            Set the Maximum retry to avoid station reconnecting to the AP unlimited times.
+
+endmenu
